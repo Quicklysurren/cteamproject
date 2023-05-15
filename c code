@@ -1,0 +1,702 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+
+//////////////////////////////////////////////
+//전역변수 설정
+char name_to_edit[30];
+
+//////////////////////////////////////////////
+//상품 구조체
+struct product {
+    char product_name[30];
+    int product_price;
+} newProduct;
+
+//////////////////////////////////////////////
+//고객구조체
+struct customer {
+    char customer_name[30];
+    char customer_phonenumber[20];
+} newCustomer;
+
+//////////////////////////////////////////////
+//주문구조체
+struct order {
+    char order_no[10];
+    char order_date[10];
+    char customer_name[30];
+    char product_name[30];
+    int quantity;
+    int product_price;
+    long total_amount;
+    char eof[1];
+} newOrder;
+
+//////////////////////////////////////////////
+//상품제거 메소드
+void removeProduct(FILE* productDB, struct product newProduct) {
+    printf("삭제할 상품명을 입력하세요: ");
+    scanf_s("%s", name_to_edit, 30);
+    fseek(productDB, 0, SEEK_END); //파일의 마지막 위치로 포인터를 이동시킴
+    struct product* buffer; //product구조체를 저장할 수 있는 buffer라는 변수 선언
+    buffer = (struct product*)malloc(ftell(productDB)); // (struct product*) == 형태는 product라는 구조체이다. // malloc == 동적메모리할당
+    int loop = 0;
+    fseek(productDB, 0, SEEK_SET); //포인터가 파일 끝에 있으므로 다시 처음으로 이동시킴
+    while (fread(&newProduct, sizeof(struct product), 1, productDB) == 1) {// fread는 뒤에 더 읽을 내용이 있는지 확인해서 있으면 1을 반환
+        // db포인터를 구조체 product 하나 크기만큼 읽으면서 뒤에 추가적인 정보가 있으면 반복을, 더 읽을 정보가 없으면 멈춤
+        if (strcmp(newProduct.product_name, name_to_edit) != 0) { // 만약 !=0 과 같지 않다면 사용자가 삭제하고 싶은 단어와 일치하지 않는, 남기고 싶은 데이터 일때 아래의 내용을 동작시킴
+            strcpy_s(buffer[loop].product_name, sizeof(newProduct.product_name), newProduct.product_name);
+            buffer[loop].product_price = newProduct.product_price; //buffer[loop]는 9개의 구조체가 있으면 buffer[0], buffer[1] ..... buffer[8] 이렁게 9개를 저장하겠다는 의미
+            loop++; //위에서 말한거처럼 buffer[x]에서 x값을 올려주기 위한 장치
+        }
+    }
+    fclose(productDB); //기존의 파일커넥션을 제거
+    fopen_s(&productDB, "productDB.txt", "w"); //파일을 w모드로 열음. w모드에서는 기존의 내용을 전부 삭제하고 새로운 내용을 쓰게 됨.
+    fwrite(buffer, sizeof(struct product), loop, productDB); //기존의 파일에다가 buffer내용을 작성함. 즉 특정 내용이 삭제된 정보가 파일에 저장
+    fclose(productDB); //다른 모드에서는 읽거나 기존의 파일 끝에 추가를 할 수 있기에 모드를 바꿔줘야함. 이를 위해 다시 커넥션을 끊음.
+    fopen_s(&productDB, "productDB.txt", "r+"); //읽기, 쓰기가 가능한 모드로 다시 커넥션을 열음
+}
+
+
+/// ////////////////////////////////
+
+int displayMenu(int imenu)  // 함수 displayMenu  메뉴를 출력하고 사용자의 선택을 입력받는 함수 
+{                           // imunu : 출력할 메뉴의 종류를 지정하는 매개변수
+    int      iChoice; // 사용자의 선택지를 저장할 변수
+    char   sChoice[2]; // 함수에서 사용될 입력 버퍼
+
+    switch (imenu) {
+    case 0:
+        //system("cls");
+        printf("+============================================================+\n");
+        printf("| 1. 상품 관리                                               |\n");
+        printf("| 2. 고객 관리                                               |\n");
+        printf("| 3. 주문 관리                                               |\n");
+        printf("| 9. Quit                                                    |\n");
+        printf("+============================================================+\n");
+        break;
+
+    case 10:
+        printf("+------------------------------------------------------------+\n");
+        printf("| 1. 상품추가                                                |\n");
+        printf("| 2. 상품수정                                                |\n");
+        printf("| 3. 상품삭제                                                |\n");
+        printf("| 4. 상품목록                                                |\n");
+        printf("| 5. 상품검색                                                |\n");
+        printf("| 9. Quit                                                    |\n");
+        printf("+------------------------------------------------------------+\n");
+        break;
+
+    case 20:
+        printf("+------------------------------------------------------------+\n");
+        printf("| 1. 고객추가                                                |\n");
+        printf("| 2. 고객수정                                                |\n");
+        printf("| 3. 고객삭제                                                |\n");
+        printf("| 4. 고객목록                                                |\n");
+        printf("| 5. 고객검색                                                |\n");
+        printf("| 9. Quit                                                    |\n");
+        printf("+------------------------------------------------------------+\n");
+        break;
+
+    case 30:
+        printf("+------------------------------------------------------------+\n");
+        printf("| 1. 주문추가                                                |\n");
+        printf("| 2. 주문수정                                                |\n");
+        printf("| 3. 주문삭제                                                |\n");
+        printf("| 4. 주문목록                                                |\n");
+        printf("| 5. 주문상세목록                                            |\n");
+        printf("| 9. Quit                                                    |\n");
+        printf("+------------------------------------------------------------+\n");
+        break;
+
+    }
+
+    printf("Choice > ");
+    scanf_s("%s", sChoice, 2);
+
+    if (isdigit(sChoice[0]) == 0) {
+        // 입력된 값이 숫자가 아니라면 0 을 리턴한다.
+        printf("\n");
+        return 0;
+
+    }
+    else {
+        // 숫자라면 선택된 값을 리턴한다.
+        return atoi(sChoice);
+
+    }
+
+}
+
+int checkCustomer(char* customer_name) // 일치하는 것이 있나 없나 확인
+{
+    FILE* customerDB1;
+    int   iRet = -1;
+
+    fopen_s(&customerDB1, "customerDB.txt", "r");
+
+    while (fread(&newCustomer, sizeof(struct customer), 1, customerDB1) == 1) {
+        if (strcmp(newCustomer.customer_name, customer_name) == 0) {
+            iRet = 1;
+        }
+    } 
+
+    fclose(customerDB1);
+
+    return iRet;
+}
+// 일치하는 고객이 발견되면 iRet값을 1로 설정하고, 파일을 닫고 iRet값을 리턴한다.
+// 일치하는 고객이 발견되지 않으면 iRet 값을 -1로 설정하고, 파일을 닫고 iRet 값을 리턴한다.
+
+
+int checkProduct(char* product_name) //일치하는 것이 있나 없나 확인
+{
+    FILE* productDB1 = NULL;
+    int      iRet = -1;
+
+    fopen_s(&productDB1, "productDB.txt", "r");
+
+    while (fread(&newProduct, sizeof(struct product), 1, productDB1) == 1) {
+        if (strcmp(newProduct.product_name, product_name) == 0) {
+            iRet = newProduct.product_price;
+        }
+    }
+
+    fclose(productDB1);
+
+    return iRet;
+}
+// 일치하는 상품이 발견되면 iRet값을 1로 설정하고, 파일을 닫고 iRet값을 리턴한다.
+// 일치하는 상품이 발견되지 않으면 iRet 값을 -1로 설정하고, 파일을 닫고 iRet 값을 리턴한다.
+
+
+
+int ProductMain(int iFlag)
+{
+    FILE* productDB;
+    int      flag;
+
+    fopen_s(&productDB, "productDB.txt", "r+");
+    char  iproduct_name[30];
+
+    switch (iFlag) {
+    case 1: //상품 수정 case1
+        fseek(productDB, 0, SEEK_END); // 파일의 마지막 위치로 포인터를 이동시킴
+        printf("상품이름을 입력하세요: ");
+        scanf_s("%s", newProduct.product_name, 30);
+        printf("상품가격을 입력하세요: ");
+        scanf_s("%d", &newProduct.product_price);
+        printf("\n");
+        printf("상품명: %s \n", newProduct.product_name);
+        printf("상품가격: %d \n", newProduct.product_price);
+        fwrite(&newProduct, sizeof(struct product), 1, productDB); // fwrite() 함수를 사용하여 newProduct의 크기를 sizeof(struct product)로 지정하고, 쓰기 작업을 1번 수행한다.
+        fclose(productDB);
+
+        break;
+
+    case 2: // 상품 수정 case2
+        rewind(productDB); //rewind : 파일 위치를 맨 처음으로 이동시키는 함수
+
+        printf("수정하실 상품의 이름을 입력하세요: ");
+        scanf_s("%s", name_to_edit, 30);
+        flag = 0;
+        while (fread(&newProduct, sizeof(struct product), 1, productDB) == 1) {
+            if (strcmp(newProduct.product_name, name_to_edit) == 0) {
+                printf("현재 제품 가격: %d\n", newProduct.product_price);
+                printf("새로운 제품 가격 입력: ");
+                scanf_s("%d", &newProduct.product_price);
+                fseek(productDB, -((int)sizeof(struct product)), SEEK_CUR);
+                fwrite(&newProduct, sizeof(struct product), 1, productDB);
+                fflush(productDB); //파일 버퍼를 비우는 함수 // 쌓이는 이전의 데이터가 파일에 쓰여지지 않는 것을 방지하기 위한 것
+                printf("상품 정보 수정 완료\n\n");
+                flag = 1;
+                break;
+            }
+        } 
+        // 수정이 완료되면 flag를 1로 설정하고 루프를 빠져나와서 완료 메시지를 출력한다.
+
+        if (flag == 0) {
+            printf("수정할 상품이름이 없습니다.\n\n");
+        } // 만약 일치하는 제품을 찾지 못하면 flag는 그대로 0이므로, 해당 메시지를 출력한다.
+
+        break;
+    case 3: //상품 목록 삭제 
+        //      removeProduct(productDB, newProduct);
+        printf("삭제할 상품명을 입력하세요: ");
+        scanf_s("%s", name_to_edit, 30);
+        fseek(productDB, 0, SEEK_END);
+        struct product* buffer;
+        buffer = (struct product*)malloc(ftell(productDB));
+        int loop = 0;
+        fseek(productDB, 0, SEEK_SET);
+        flag = 0;
+        //파일의 끝으로 이동하고, 동적으로 할당한 buffer를 만들어 파일의 내용을 읽어옵니다
+        while (fread(&newProduct, sizeof(struct product), 1, productDB) == 1) {
+            if (strcmp(newProduct.product_name, name_to_edit) != 0) {
+                strcpy_s(buffer[loop].product_name, sizeof(newProduct.product_name), newProduct.product_name);
+                buffer[loop].product_price = newProduct.product_price;
+                loop++;
+            }
+            else {
+                flag = 1;
+            } //삭제할 상품을 찾으면 flag를 1로 설정하고, 찾은 상품을 buffer에 복사하지 않습니다.
+        }
+
+        fclose(productDB);
+        fopen_s(&productDB, "productDB.txt", "w"); //파일을 닫고 "w"모드로 열어서, buffer에 있는 상품 정보를 다시 씁니다.
+        fwrite(buffer, sizeof(struct product), loop, productDB);
+        fclose(productDB);
+        fopen_s(&productDB, "productDB.txt", "r+"); //파일을 닫고 "r+"모드로 열어서, 파일 포인터를 다시 파일의 처음으로 이동합니다.
+
+        if (flag == 1) {
+            printf("상품 정보 삭제 완료\n\n");
+        }
+        else {
+            printf("삭제할 상품이름이 없습니다.\n\n");
+        }
+        //flag 값에 따라서 삭제 완료/실패 메시지를 출력합니다.
+        break; //switch 문에서 break문을 만나서 함수를 종료합니다.
+    case 4: // 상품 목록 확인
+        rewind(productDB);
+
+        printf("\n");
+        printf("** 상품목록\n");
+        printf("+------------------------------------------------------------+\n");
+        printf("|  상품이름                         상품가격                 |\n");
+        printf("+------------------------------------------------------------+\n");
+
+        while (fread(&newProduct, sizeof(struct product), 1, productDB) == 1) {
+            printf("   %-30.30s %10d \n", newProduct.product_name, newProduct.product_price);
+        }
+        printf("\n\n");
+
+        break;
+
+    case 5: // 상품 목록 검색
+        printf("상품이름을 입력하세요: ");
+        scanf_s("%s", iproduct_name, 30);
+
+        rewind(productDB);
+
+        printf("** 상품검색\n");
+        printf("+------------------------------------------------------------+\n");
+        printf("|  상품이름                         상품가격                 |\n");
+        printf("+------------------------------------------------------------+\n");
+        flag = 0; // flag 변수를 0 으로 초기화
+
+        while (fread(&newProduct, sizeof(struct product), 1, productDB) == 1) {
+            if (strcmp(newProduct.product_name, iproduct_name) == 0) {
+                flag = 1; 
+                printf("   %-30.30s %10d \n", newProduct.product_name, newProduct.product_price);
+            } 
+        } //flag 변수 값이 1이면 제품 이름과 가격을 출력
+
+        if (flag == 0) { // flag 변수 값이 0 이면, 해당 제품이 없다는 메시지를 출력한다.
+            printf("해당상품이 없습니다\n");
+        }
+        printf("\n\n"); //줄바꿈을 두 번 실행하여 출력 결과를 보기 좋게 정리합니다.
+
+
+    case 9: // 해당 관리 종료
+        break;
+    default:
+        printf("잘못입력하셨습니다\n");
+        break;
+    }
+
+    fclose(productDB);
+
+    return 0;
+}
+
+
+int CustomerMain(int iFlag)
+{
+    FILE* customerDB;
+    int   flag;
+    fopen_s(&customerDB, "customerDB.txt", "r+");
+    char ocustomer_name[30];
+
+    switch (iFlag) {
+    case 1: // 고객 검색 
+        fseek(customerDB, 0, SEEK_END); // 파일 포인터를 파일 끝으로 이동시킨다.
+        printf("고객이름을 입력하세요: ");
+        scanf_s("%s", newCustomer.customer_name, 30);
+        printf("고객님의 전화번호를 입력하세요: ");
+        scanf_s("%s", &newCustomer.customer_phonenumber, 20);
+        printf("\n");
+        printf("고객이름: %s \n", newCustomer.customer_name);
+        printf("전화번호: %s \n", newCustomer.customer_phonenumber);
+        fwrite(&newCustomer, sizeof(struct customer), 1, customerDB); //파일을 열어 고객 파일에 저장함
+        break;
+
+    case 2: // 고객 수정
+        rewind(customerDB);
+        printf("수정하실 고객의 이름을 입력하세요: ");
+        scanf_s("%s", name_to_edit, 30);
+        flag = 0; //flag 변수 값을 0 으로 초기화
+
+        while (fread(&newCustomer, sizeof(struct customer), 1, customerDB) == 1) {
+            if (strcmp(newCustomer.customer_name, name_to_edit) == 0) { // flag 값이 만약에 0이라면 저장한다.
+                printf("현재 고객 전화번호: %s\n", newCustomer.customer_phonenumber);
+                printf("새로운 전화번호 입력: ");
+                scanf_s("%s", &newCustomer.customer_phonenumber, 20);
+                fseek(customerDB, -((int)sizeof(struct customer)), SEEK_CUR);
+                fwrite(&newCustomer, sizeof(struct customer), 1, customerDB);
+                fflush(customerDB); // 파일에 쓴 데이터를 디스크에 즉시 저장한다.
+                printf("고객 정보 수정 완료\n");
+                break;
+            }
+        }
+
+        if (flag == 1) {
+            printf("수정할 고객이름이 없습니다.\n\n");
+        } //만약 flag 값이 1이 나왔다면 해당 고객이 없다는 메세지를 출력한다.
+
+        break; // switch 문에서 빠져나오기 위해 break 추가
+    case 3: //고객 삭제 부분
+        printf("삭제할 고객명 입력하세요: ");
+        scanf_s("%s", name_to_edit, 30);
+        rewind(customerDB); //파일을 rewind하여 파일의 끝에 도달할 때까지 고객 정보를 읽어들입니다
+        flag = 0; //flag 값을 0으로 초기화
+
+        while (fread(&newCustomer, sizeof(struct customer), 1, customerDB) == 1) {
+            if (strcmp(newCustomer.customer_name, name_to_edit) == 0) {
+                flag = 1; 
+                break;
+            }
+        }
+        if (flag == 1) {
+            fseek(customerDB, 0, SEEK_END);
+            struct customer* buffer;
+            buffer = (struct customer*)malloc(ftell(customerDB));
+            int loop = 0;
+            fseek(customerDB, 0, SEEK_SET);
+            while (fread(&newCustomer, sizeof(struct customer), 1, customerDB) == 1) {
+                if (strcmp(newCustomer.customer_name, name_to_edit) != 0) {
+                    strcpy_s(buffer[loop].customer_name, sizeof(newCustomer.customer_name), newCustomer.customer_name);
+                    strcpy_s(buffer[loop].customer_phonenumber, sizeof(newCustomer.customer_phonenumber), newCustomer.customer_phonenumber);
+                    loop++;
+                } //현재 열려있는 customerDB 파일을 읽어오면서, 삭제하려는 고객의 이름과 다른 고객들의 정보를 임시 버퍼인 buffer에 복사하는 부분
+                //메모장: [이름1, 전화번호] [이름2, 전화번호] [이름3, 전화번호] [이름4, 전화번호]
+            }   //버퍼(임시메모리): [이름1, 전화번호] [이름2, 전화번호] [이름4, 전화번호]
+            fclose(customerDB);
+            fopen_s(&customerDB, "customerDB.txt", "w");
+            fwrite(buffer, sizeof(struct customer), loop, customerDB);
+            fclose(customerDB);
+            fopen_s(&customerDB, "customerDB.txt", "r+");
+
+            printf("고객 정보 삭제 완료\n\n");
+            //파일을 다시 읽기 / 쓰기 모드로 열고 삭제 완료 메시지를 출력합니다.
+        }
+        else {
+            printf("삭제할 고객이름이 없습니다.\n\n");
+
+        }
+        break;
+
+    case 4: //고객 목록 부분
+        rewind(customerDB);
+
+        printf("\n");
+        printf("** 고객목록\n");
+        printf("+------------------------------------------------------------+\n");
+        printf("|  고객이름                       전화번호                   |\n");
+        printf("+------------------------------------------------------------+\n");
+
+        while (fread(&newCustomer, sizeof(struct customer), 1, customerDB) == 1) {
+            printf("   %-30.30s %-20.20s \n", newCustomer.customer_name, newCustomer.customer_phonenumber);
+        }
+        printf("\n\n");
+        break;
+
+    case 5: //고객 이름 검색 부분
+        printf("고객이름을 입력하세요: ");
+        scanf_s("%s", ocustomer_name, 30);
+
+        rewind(customerDB);
+
+        printf("** 고객검색\n");
+        printf("+------------------------------------------------------------+\n");
+        printf("|  고객이름                       전화번호                   |\n");
+        printf("+------------------------------------------------------------+\n");
+        flag = 0; //flag 변수 값을 0 으로 초기화
+
+        while (fread(&newCustomer, sizeof(struct customer), 1, customerDB) == 1) {
+            if (strcmp(newCustomer.customer_name, ocustomer_name) == 0) {
+                flag = 1;
+                printf("   %-30.30s %-20.20s \n", newCustomer.customer_name, newCustomer.customer_phonenumber);
+            }
+        } // flag 값이 1 이라면, 고객 이름과 고객 전화번호를 출력
+
+        if (flag == 0) {
+            printf("해당상품이 없습니다\n");
+        } //만약 flag 값이 0 이라면 없다는 메세지 출력
+        printf("\n\n");
+
+    case 9:
+        break;
+    default:
+        printf("잘못입력하셨습니다\n");
+        break;
+    }
+
+    fclose(customerDB);
+
+    return 0;
+}
+
+
+
+int OrderMain(int iFlag)
+{
+    FILE* orderDB;
+    int      iCheck;
+    char   order_no[10];
+    int      flag;
+
+    fopen_s(&orderDB, "orderDB.txt", "r+");
+    newOrder.eof[0] = 0x00;
+
+    switch (iFlag) {
+    case 1:
+        fseek(orderDB, 0, SEEK_END); //파일의 마지막으로 포인터를 이동시킴
+        printf("새로운 주문 정보를 입력하세요.\n");
+        printf("주문 번호: ");
+        scanf_s("%s", newOrder.order_no, 10);
+
+        printf("주문 날짜: ");
+        scanf_s("%s", newOrder.order_date, 10);
+
+        iCheck = -1; //iCheck 를 -1로 지정
+        while (iCheck == -1) {
+            printf("주문 고객 이름: ");
+            scanf_s("%s", newOrder.customer_name, 30);
+
+            iCheck = checkCustomer(newOrder.customer_name);
+
+            if (iCheck == -1) {
+                printf("고객이름이 없습니다.\n");
+            }
+        } //만약 고객 이름을 가져왔는데 일치하는 이름이 없다면 -1이 나와 고객이 없다고 출력
+
+        iCheck = -1; //iCheck 를 -1로 지정
+        while (iCheck == -1) {
+            printf("주문 상품 이름: ");
+            scanf_s("%s", newOrder.product_name, 30);
+
+            iCheck = checkProduct(newOrder.product_name);
+
+            if (iCheck == -1) {
+                printf("상품이름이 없습니다.\n");
+            } //만약 상품 이름을 가져왔는데 일치하는 상품이 없다면 -1이 나와 상품이 없다고 출력
+
+            newOrder.product_price = (long)iCheck;
+        }
+
+        printf("주문 수량: ");
+        scanf_s("%d", &newOrder.quantity);
+
+        newOrder.total_amount = (long)(newOrder.product_price * newOrder.quantity);//총액 = 상품가격 곱하기 상품 양
+
+        printf("\n\n");
+        printf("----------------------------------------\n");
+        printf("상품  이름 : %s \n", newOrder.product_name);
+        printf("총주문총액 : %d \n", newOrder.total_amount);
+        printf("----------------------------------------\n");
+        printf("\n\n");
+
+        fwrite(&newOrder, sizeof(struct order), 1, orderDB);
+        fflush(orderDB);
+        break;
+
+
+    case 2:
+        rewind(orderDB);
+
+        printf("수정하실 주문번호를 입력하세요: ");
+        scanf_s("%s", order_no, 10);
+
+        flag = 0;
+
+        while (fread(&newOrder, sizeof(struct order), 1, orderDB) == 1) {
+            //         newOrder.eof[0] = 0x00;
+
+            if (strcmp(newOrder.order_no, order_no) == 0) { //strcmp 문자와 문자를 비교 
+            //주문 데이터 베이스에 있는 주문번화와 사용자가 입력한 주문 번호를 비교하고 일치하는 경우 
+                printf("현재 주문 수량: %d\n", newOrder.quantity);
+                printf("새로운 주문 수량 입력: ");
+                scanf_s("%d", &newOrder.quantity);
+
+                newOrder.total_amount = newOrder.product_price * newOrder.quantity;
+
+                fseek(orderDB, -((int)sizeof(struct order)), SEEK_CUR);//현재 파일 포인터 위치를 해당 주문 데이터의 처음 위치로 이동시키는 함수
+
+                fwrite(&newOrder, sizeof(struct order), 1, orderDB); //수정된 주문 데이터를 파일에 쓰는 함수
+                fflush(orderDB); //데이터를 강제로 파일에 저장하는 함수
+                printf("주문 정보 수정 완료\n\n");
+                flag = 1;
+                break;
+            }
+
+        }
+
+        if (flag == 0) {
+            printf("수정할 주문번호가 없습니다.\n\n");
+        } //일치 하지 않는 경우
+
+        break;
+
+
+    case 3:
+        rewind(orderDB);
+        printf("삭제하실 주문번호를 입력하세요: ");
+        scanf_s("%s", order_no, 10);
+        FILE* temp;
+        fopen_s(&temp, "temp.txt", "w+");
+
+        flag = 0;
+
+        while (fread(&newOrder, sizeof(struct order), 1, orderDB) == 1) {
+            if (strcmp(newOrder.order_no, order_no) != 0) {
+                fwrite(&newOrder, sizeof(struct order), 1, temp);
+            }
+            else {
+                flag = 1;
+            }
+        }
+        fclose(orderDB);
+        fclose(temp);
+        remove("orderDB.txt");
+        rename("temp.txt", "orderDB.txt");
+
+        if (flag == 1) {
+            printf("주문 정보 삭제 완료\n\n");
+        }
+        else {
+            printf("삭제할 주문번호가 없습니다.\n\n");
+        }
+
+        fopen_s(&orderDB, "orderDB.txt", "r+");
+        break;
+
+    case 4:
+        rewind(orderDB);
+
+        printf("\n");
+        printf("** 주문목록\n");
+        printf("+-------------------------------------------------------------------------------------+\n");
+        printf("|  주문번호  주문일자  고객명               상품명               수  량         금액  |\n");
+        printf("+-------------------------------------------------------------------------------------+\n");
+
+        while (fread(&newOrder, sizeof(struct order), 1, orderDB) == 1) {
+            printf(" %10s  %-8.8s  %-20.20s %-20.20s %6d %12ld\n", newOrder.order_no, newOrder.order_date, newOrder.customer_name, newOrder.product_name, newOrder.quantity, newOrder.total_amount);
+        }
+        printf("\n\n");
+
+        break;
+
+    case 5:
+        rewind(orderDB);// 파일 포인터의 위치를 처음으로 이동시킴
+
+        printf("주문 번호: ");
+        scanf_s("%s", order_no, 10);
+        iCheck = -1; //iCheck 변수를 -1 로 초기화
+
+        while (fread(&newOrder, sizeof(struct order), 1, orderDB) == 1) {//orderDB 파일에서 한 건씩 데이터를 읽어옴
+            
+            if (strcmp(newOrder.order_no, order_no) == 0) { // 현재 읽어온 데이터의 주문번호가 일치하는지 비교
+                iCheck = 1; // 일치하는 데이터가 잇다면 iCheck 변수를 1로 설정
+                printf("\n");
+                printf("------------------------------------------------\n");
+                printf(" 주문번호 : %s\n", newOrder.order_no);
+                printf(" 주문일자 : %s\n", newOrder.order_date);
+                printf(" 고 객 명 : %s\n", newOrder.customer_name);
+                printf(" 상 품 명 : %s\n", newOrder.product_name);
+                printf(" 주문수량 : %d\n", newOrder.quantity);
+                printf(" 주문가격 : %d\n", newOrder.product_price);
+                printf(" 주문금액 : %ld\n", newOrder.total_amount);
+                printf("------------------------------------------------\n");
+                printf("\n\n");
+            }
+        } //strcmp는 두 문자를 비교하는 것으로, 두 개가 일치하면 출력
+
+        if (iCheck == -1) {
+            printf("%s 주문번호 자료가 없습니다.\n", order_no);
+        } // 만약 iCheck의 값이 -1 이라면 주문번호가 없다고 출력
+
+    case 9:
+        break;
+
+    default:
+        printf("잘못된 입력입니다.\n");
+        break;
+    }
+
+    fclose(orderDB);
+
+    return 0;
+}
+
+
+int main() {
+    time_t t = time(NULL);
+    struct tm result;
+    localtime_s(&result, &t);
+
+    printf("실행 시간: %d년 %d월 %d일 %d시 %d분 %d초\n",
+        result.tm_year + 1900, result.tm_mon + 1, result.tm_mday,
+        result.tm_hour, result.tm_min, result.tm_sec);
+    FILE* createFile;
+    int   iChoice = 0;
+
+    fopen_s(&createFile, "productDB.txt", "a+");
+    fclose(createFile);
+    fopen_s(&createFile, "customerDB.txt", "a+");
+    fclose(createFile);
+    fopen_s(&createFile, "orderDB.txt", "a+");
+    fclose(createFile);
+
+    memset(&newOrder, 0x00, sizeof(newOrder));
+    memset(&newProduct, 0x00, sizeof(newProduct));
+    memset(&newCustomer, 0x00, sizeof(newCustomer));
+
+    while (1) { //메인 함수. 프로그램 실행 시각을 출력하고, 제품, 고객, 주문 메뉴를 각각 실행할 수 있도록 dispalyMenu함수를 호출
+        iChoice = displayMenu(0);
+        switch (iChoice) {
+   
+        case 1:
+            while (iChoice != 9) {
+                iChoice = displayMenu(10);
+                ProductMain(iChoice);
+            }
+            break;
+ 
+        case 2:
+            while (iChoice != 9) {
+                iChoice = displayMenu(20);
+                CustomerMain(iChoice);
+            }
+            break;
+
+        case 3:
+            while (iChoice != 9) {
+                iChoice = displayMenu(30);
+                OrderMain(iChoice);
+            }
+            break;
+            
+        case 9:
+            // Quite
+            return 0;
+        default:
+            printf("잘못된 입력입니다.\n");
+            break;
+        }
+    }
+} // 사용자가 9번을 입력하면 프로그램이 종료된다.
+
+
